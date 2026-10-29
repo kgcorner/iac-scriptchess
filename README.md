@@ -20,6 +20,10 @@ Dev and prod live in one AWS account, so they are kept apart by **separate state
 - CI never applies. It only checks format, validity and the function tests.
 - Never commit state, credentials or `*.tfvars` other than `terraform.tfvars` (ids only).
 
+## Prod is frozen
+
+Nothing in `prod/` runs unless you pass `-var confirm_prod_change=yes-change-prod`, and its `distribution_id` is still `REPLACE_ME`. Until both are done on purpose, prod cannot be planned or changed from this repo. Dev is unaffected: applying dev only touches the dev distribution and creates a new dev function; the old shared functions stay as they are, so prod keeps running exactly as today.
+
 ## What the distributions do
 
 - **HTTP to HTTPS:** `redirect-to-https` on the behaviour (CloudFront answers 301). Prod also has HSTS available (`hsts` in `main.tf`, off until prod has run on HTTPS only for a while).
