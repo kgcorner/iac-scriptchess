@@ -1,0 +1,11 @@
+# OpenTofu / Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+# Variable files may hold secrets; terraform.tfvars is committed and must stay secret-free
+*.tfvars
+!terraform.tfvars
+*.secret.tfvars
+.env
