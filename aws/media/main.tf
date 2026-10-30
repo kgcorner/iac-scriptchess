@@ -4,11 +4,6 @@
 locals {
   region = "ap-south-1"
   bucket = "scriptchess-images"
-
-  # "COEP-with-require-corp", a hand-made policy shared with the dev and prod site distributions
-  # (COOP/COEP/CORP headers plus an expired origin-trial token). Not managed here yet: prod pages still
-  # send COEP, so these images must keep their CORP/CORS headers until prod is migrated. Then replace it.
-  response_headers_policy_id = "a0d5d361-8527-4d04-a303-e76b29cbce9a"
 }
 
 # ---------------------------------------------------------------- bucket
@@ -69,6 +64,31 @@ resource "aws_s3_bucket_ownership_controls" "media" {
 
 # ---------------------------------------------------------------- distribution
 
+# Public images need CORS and nothing else: no COEP, COOP or CORP headers. (The old shared policy
+# "COEP-with-require-corp" a0d5d361-... is left in place for prod until prod is migrated.)
+resource "aws_cloudfront_response_headers_policy" "media" {
+  name    = "scriptchess-media-cors"
+  comment = "CORS for public images"
+
+  cors_config {
+    access_control_allow_credentials = false
+    access_control_max_age_sec       = 604800
+    origin_override                  = true
+
+    access_control_allow_headers {
+      items = ["*"]
+    }
+
+    access_control_allow_methods {
+      items = ["GET", "HEAD", "OPTIONS"]
+    }
+
+    access_control_allow_origins {
+      items = ["*"]
+    }
+  }
+}
+
 # AWS-managed policy: caches on path only and enables compression.
 data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
@@ -97,7 +117,7 @@ resource "aws_cloudfront_distribution" "media" {
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
     cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized.id
-    response_headers_policy_id = local.response_headers_policy_id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.media.id
   }
 
   # No custom domain: images are served from the distribution's own *.cloudfront.net name.
