@@ -12,16 +12,16 @@ aws/
     dev/       dev.scriptchess.com: distribution + bucket + its A record
     prod/      scriptchess.com, www.scriptchess.com
   media/       scriptchess-images bucket + its CloudFront distribution (no custom domain)
-  global/      (planned) shared by all environments: Route 53 zone, IAM, ACM, media bucket
+  global/      the scriptchess.com Route 53 zone and the records no single environment owns (mail, API, verification)
 digitalocean/  (planned) same shape
 gcp/           (planned) same shape
 ```
 
 One folder per cloud, because each has its own providers, state and credentials. Inside a cloud, a stack is one deployable unit, split by how often it changes and how much a mistake costs, not by service type. Dev's bucket, distribution and record are one unit, so one plan shows what changes together.
 
-Dev and prod live in one AWS account, so they are kept apart by **separate state files** (`scriptchess-state` bucket, keys `aws/dev.tfstate`, `aws/prod.tfstate` and `aws/media.tfstate`) and separate folders. Both call the same modules, so they cannot drift.
+Dev and prod live in one AWS account, so they are kept apart by **separate state files** (`scriptchess-state` bucket, keys `aws/dev.tfstate`, `aws/prod.tfstate`, `aws/media.tfstate` and `aws/global.tfstate`) and separate folders. Both call the same modules, so they cannot drift.
 
-The `scriptchess.com` Route 53 zone is shared by dev and prod, so it will get its own stack in `global/`. Each environment owns only its own records in it.
+The `scriptchess.com` Route 53 zone is shared by dev and prod, so it lives in `global/`. Each environment owns only its own site records in it; `global/` owns the rest.
 
 ## Rules
 
