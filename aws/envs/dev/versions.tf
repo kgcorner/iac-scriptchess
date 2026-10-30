@@ -11,7 +11,7 @@ terraform {
   # State lives in S3, one file per environment. Locking uses S3's own lock file.
   backend "s3" {
     bucket       = "scriptchess-state"
-    key          = "cloudfront/dev.tfstate"
+    key          = "aws/dev.tfstate"
     region       = "ap-south-1"
     use_lockfile = true
     encrypt      = true

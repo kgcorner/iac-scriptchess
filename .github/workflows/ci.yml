@@ -26,7 +26,7 @@ jobs:
       - name: Validate dev and prod
         run: |
           for env in dev prod; do
-            (cd aws/cloudfront/$env && tofu init -backend=false -input=false && tofu validate)
+            (cd aws/envs/$env && tofu init -backend=false -input=false && tofu validate)
           done
       - name: Function tests
-        run: node --test aws/cloudfront/functions/viewer-request.test.js
+        run: node --test aws/functions/viewer-request.test.js
