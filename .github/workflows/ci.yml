@@ -25,8 +25,8 @@ jobs:
         run: tofu fmt -check -recursive
       - name: Validate dev and prod
         run: |
-          for env in dev prod; do
-            (cd aws/envs/$env && tofu init -backend=false -input=false && tofu validate)
+          for dir in envs/dev envs/prod media; do
+            (cd aws/$dir && tofu init -backend=false -input=false && tofu validate)
           done
       - name: Function tests
         run: node --test aws/functions/viewer-request.test.js
