@@ -10,11 +10,6 @@ module "site" {
   hsts            = true # dev first, so a problem shows up here before prod
 }
 
-# Adopt the existing distribution instead of creating a new one. Remove this block once it is applied.
-import {
-  to = module.site.aws_cloudfront_distribution.this
-  id = var.distribution_id
-}
 
 output "distribution_id" {
   value = module.site.distribution_id
