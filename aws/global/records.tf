@@ -34,17 +34,7 @@ locals {
       records = ["dkim3.mcsv.net"]
     }
 
-    # ---- servers
-    api = {
-      name    = "api.scriptchess.com"
-      type    = "A"
-      records = ["13.126.2.16"] # an AWS address. Check that it is still yours.
-    }
-    blog = {
-      name    = "blog.scriptchess.com"
-      type    = "A"
-      records = ["13.126.2.16"] # same address as api. Check that it is still yours.
-    }
+    # ---- servers (the legacy api and blog records were deleted from Route 53 by hand; they pointed at an old AWS address)
     blogv2 = {
       name    = "blogv2.scriptchess.com"
       type    = "A"
