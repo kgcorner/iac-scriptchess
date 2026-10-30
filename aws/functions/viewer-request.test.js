@@ -1,4 +1,4 @@
-// Run: node --test aws/cloudfront/functions/viewer-request.test.js
+// Run: node --test aws/functions/viewer-request.test.js
 const test = require("node:test");
 const assert = require("node:assert");
 const { handler, toQuery } = require("./viewer-request.js");

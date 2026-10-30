@@ -5,20 +5,32 @@ Infrastructure for ScriptChess, managed with [OpenTofu](https://opentofu.org). P
 ## Layout
 
 ```
-aws/cloudfront/
-  modules/site/     one distribution: S3 website origin, function, security headers, 404 page
-  functions/        viewer-request.js (+ tests), shared by dev and prod
-  dev/              dev.scriptchess.com
-  prod/             scriptchess.com, www.scriptchess.com
+aws/
+  modules/     reusable pieces: site (CloudFront), website-bucket (S3)
+  functions/   CloudFront function source + tests, shared by dev and prod
+  envs/
+    dev/       dev.scriptchess.com: distribution + bucket + its A record
+    prod/      scriptchess.com, www.scriptchess.com
+  global/      (planned) shared by all environments: Route 53 zone, IAM, ACM, media bucket
+digitalocean/  (planned) same shape
+gcp/           (planned) same shape
 ```
 
-Dev and prod live in one AWS account, so they are kept apart by **separate state files** (`scriptchess-state` bucket, keys `cloudfront/dev.tfstate` and `cloudfront/prod.tfstate`) and separate folders. Both call the same module, so they cannot drift.
+One folder per cloud, because each has its own providers, state and credentials. Inside a cloud, a stack is one deployable unit, split by how often it changes and how much a mistake costs, not by service type. Dev's bucket, distribution and record are one unit, so one plan shows what changes together.
+
+Dev and prod live in one AWS account, so they are kept apart by **separate state files** (`scriptchess-state` bucket, keys `aws/dev.tfstate` and `aws/prod.tfstate`) and separate folders. Both call the same modules, so they cannot drift.
+
+The `scriptchess.com` Route 53 zone is shared by dev and prod, so it will get its own stack in `global/`. Each environment owns only its own records in it.
 
 ## Rules
 
 - Run `tofu plan` before every apply and read it. Apply dev first, check it, then prod.
 - CI never applies. It only checks format, validity and the function tests.
 - Never commit state, credentials or `*.tfvars` other than `terraform.tfvars` (ids only).
+
+## Running tofu with your AWS login
+
+If `tofu plan` fails with "No valid credential sources found" after `aws login`, run it through the wrapper instead: `../../../scripts/tofu.sh plan -out=dev.tfplan` (from `aws/envs/dev`). It passes your current CLI session to that one command and changes nothing else.
 
 ## Prod is frozen
 
@@ -37,10 +49,10 @@ Nothing in `prod/` runs unless you pass `-var confirm_prod_change=yes-change-pro
 The distributions already exist, so they are **imported**, not created.
 
 1. `aws cloudfront list-distributions --query "DistributionList.Items[].[Id,Aliases.Items[0]]" --output text` and put the ids in `dev/terraform.tfvars` and `prod/terraform.tfvars`. (Not the ETag from `get-distribution-config`.)
-2. `cd aws/cloudfront/dev && tofu init && tofu plan`.
+2. `cd aws/envs/dev && tofu init && tofu plan`.
 3. Expected: the function and security-headers policy are **created**; the distribution is **updated in place** (the old functions and policies are detached; they stay in the account until you delete them). Anything else, stop and read it.
 4. `tofu apply`. The rollout takes about 5 to 15 minutes. Then check dev (below).
-5. Repeat in `prod/`, after answering the open question in `prod/main.tf`.
+5. Repeat in `prod/`, after answering the open question in `aws/envs/prod/main.tf`.
 6. Delete the `import` block after the first successful apply.
 
 Test the function without deploying: `aws cloudfront test-function --name scriptchess-dev-viewer-request --if-match <ETag> --event-object fileb://event.json`.
@@ -57,7 +69,7 @@ curl -sI https://dev.scriptchess.com/insight/abc              # 200 (app shell)
 ## Local tests
 
 ```
-node --test aws/cloudfront/functions/viewer-request.test.js
+node --test aws/functions/viewer-request.test.js
 tofu fmt -recursive
 ```
 
