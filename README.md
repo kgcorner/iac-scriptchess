@@ -7,12 +7,15 @@ Infrastructure for ScriptChess, managed with [OpenTofu](https://opentofu.org). P
 ```
 aws/cloudfront/
   modules/site/     one distribution: S3 website origin, function, security headers, 404 page
+  modules/website-bucket/   the public S3 website bucket (settings only, never the files in it)
   functions/        viewer-request.js (+ tests), shared by dev and prod
-  dev/              dev.scriptchess.com
+  dev/              dev.scriptchess.com: distribution, bucket, and its A record
   prod/             scriptchess.com, www.scriptchess.com
 ```
 
 Dev and prod live in one AWS account, so they are kept apart by **separate state files** (`scriptchess-state` bucket, keys `cloudfront/dev.tfstate` and `cloudfront/prod.tfstate`) and separate folders. Both call the same module, so they cannot drift.
+
+The `scriptchess.com` Route 53 zone is shared by dev and prod, so it gets its own stack later. Each environment owns only its own records in it.
 
 ## Rules
 

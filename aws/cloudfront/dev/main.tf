@@ -14,3 +14,28 @@ module "site" {
 output "distribution_id" {
   value = module.site.distribution_id
 }
+
+module "bucket" {
+  source = "../modules/website-bucket"
+
+  bucket = "dev.scriptchess.com"
+}
+
+# The scriptchess.com zone is shared by dev and prod, so it is not managed here. This stack only
+# owns its own record in it.
+data "aws_route53_zone" "main" {
+  name         = "scriptchess.com"
+  private_zone = false
+}
+
+resource "aws_route53_record" "dev" {
+  zone_id = data.aws_route53_zone.main.zone_id
+  name    = "dev.scriptchess.com"
+  type    = "A"
+
+  alias {
+    name                   = module.site.domain_name
+    zone_id                = module.site.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
