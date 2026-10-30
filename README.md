@@ -28,6 +28,10 @@ The `scriptchess.com` Route 53 zone is shared by dev and prod, so it will get it
 - CI never applies. It only checks format, validity and the function tests.
 - Never commit state, credentials or `*.tfvars` other than `terraform.tfvars` (ids only).
 
+## Running tofu with your AWS login
+
+If `tofu plan` fails with "No valid credential sources found" after `aws login`, run it through the wrapper instead: `../../../scripts/tofu.sh plan -out=dev.tfplan` (from `aws/envs/dev`). It passes your current CLI session to that one command and changes nothing else.
+
 ## Prod is frozen
 
 Nothing in `prod/` runs unless you pass `-var confirm_prod_change=yes-change-prod`, and its `distribution_id` is still `REPLACE_ME`. Until both are done on purpose, prod cannot be planned or changed from this repo. Dev is unaffected: applying dev only touches the dev distribution and creates a new dev function; the old shared functions stay as they are, so prod keeps running exactly as today.
