@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# No AWS credentials here on purpose: CI only checks format, syntax and the function tests.
+# plan and apply are run by hand.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.10.6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Format
+        run: tofu fmt -check -recursive
+      - name: Validate dev and prod
+        run: |
+          for env in dev prod; do
+            (cd aws/cloudfront/$env && tofu init -backend=false -input=false && tofu validate)
+          done
+      - name: Function tests
+        run: node --test aws/cloudfront/functions/viewer-request.test.js
