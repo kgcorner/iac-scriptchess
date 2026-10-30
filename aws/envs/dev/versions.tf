@@ -19,5 +19,5 @@ terraform {
 }
 
 provider "aws" {
-  region = "ap-south-1" # CloudFront is global; the region only picks where API calls go
+  region = local.region # CloudFront is global; the region only picks where API calls go
 }
