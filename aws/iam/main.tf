@@ -1,114 +1,94 @@
-# Who and what can act in the AWS account: three users, one group, and the role the EC2 instance uses. Written
-# to match what is live today, so the first plan shows no changes. What should change is in HARDENING.md.
+# How GitHub Actions deploys, with no AWS keys stored in GitHub.
 #
-# Never managed here: access keys. A key made by OpenTofu would sit in the state file in plain text. Create,
-# rotate and delete keys by hand (see HARDENING.md).
+# A workflow asks AWS for short-lived credentials (OIDC) by proving which repository and branch it runs from.
+# Each role can touch one site only, and the prod role can only be assumed from the master branch.
 #
-# Not here: rds-monitoring-role. There is no RDS database any more, so nothing needs it; delete it by hand.
+# What is deliberately not here: IAM users and access keys (a key made by OpenTofu would sit in the state in
+# plain text), and the old roles for EC2 and RDS. See HARDENING.md for the clean-up of what exists today.
 
 locals {
   region = "ap-south-1"
 
-  admin_group = "scriptchess-admin-group"
+  repo = "kgcorner/scriptchess-fe"
 
-  managed = {
-    admin           = "arn:aws:iam::aws:policy/AdministratorAccess"
-    s3_full         = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-    cloudfront_full = "arn:aws:iam::aws:policy/CloudFrontFullAccess"
+  sites = {
+    dev = {
+      bucket          = "dev.scriptchess.com"
+      distribution_id = "E5RDYG73D1FLN"
+      # Dev deploys can be started by hand from any branch. Pull requests (including from forks) cannot assume it.
+      subjects = ["repo:${local.repo}:ref:refs/heads/*"]
+    }
+    prod = {
+      # Prod serves the www.scriptchess.com bucket today while deploys write to scriptchess.com. Add that bucket
+      # here when the bucket question is settled.
+      bucket          = "scriptchess.com"
+      distribution_id = "E1VV4H17VBT521"
+      subjects        = ["repo:${local.repo}:ref:refs/heads/master"]
+    }
   }
 }
 
-# ---------------------------------------------------------------- group
+data "aws_caller_identity" "current" {}
 
-# WARNING: every user below is in this group, and the group has AdministratorAccess. That includes deployer
-# (the GitHub deploy credentials) and image-generator-user. See HARDENING.md before copying this pattern.
-resource "aws_iam_group" "admin" {
-  name = local.admin_group
+resource "aws_iam_openid_connect_provider" "github" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+  # AWS no longer checks the thumbprint for GitHub, but older provider versions require one.
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1",
+    "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
+  ]
 }
 
-resource "aws_iam_group_policy_attachment" "admin_administrator" {
-  group      = aws_iam_group.admin.name
-  policy_arn = local.managed.admin
-}
+resource "aws_iam_role" "deploy" {
+  for_each = local.sites
 
-resource "aws_iam_group_policy_attachment" "admin_s3" {
-  group      = aws_iam_group.admin.name
-  policy_arn = local.managed.s3_full
-}
-
-# ---------------------------------------------------------------- users
-
-# You, at the console and the CLI.
-resource "aws_iam_user" "admin" {
-  name = "scriptchess-admin"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-# The GitHub Actions deploy credentials (S3 upload and CloudFront invalidation).
-resource "aws_iam_user" "deployer" {
-  name = "deployer"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-# Generates images into generated-images-scriptchess.
-resource "aws_iam_user" "image_generator" {
-  name = "image-generator-user"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_iam_user_group_membership" "admin" {
-  user   = aws_iam_user.admin.name
-  groups = [aws_iam_group.admin.name]
-}
-
-resource "aws_iam_user_group_membership" "deployer" {
-  user   = aws_iam_user.deployer.name
-  groups = [aws_iam_group.admin.name]
-}
-
-resource "aws_iam_user_group_membership" "image_generator" {
-  user   = aws_iam_user.image_generator.name
-  groups = [aws_iam_group.admin.name]
-}
-
-resource "aws_iam_user_policy_attachment" "deployer_cloudfront" {
-  user       = aws_iam_user.deployer.name
-  policy_arn = local.managed.cloudfront_full
-}
-
-# ---------------------------------------------------------------- the EC2 instance's role
-
-# The old application server (stopped for now). Full S3 access, which is more than it needs.
-resource "aws_iam_role" "ec2_for_s3" {
-  name                 = "ec2-for-s3"
-  description          = "Allows EC2 instances to call S3 on your behalf."
+  name                 = "github-deploy-${each.key}"
+  description          = "GitHub Actions deploys of ${each.value.bucket} (no keys)."
   max_session_duration = 3600
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-      Action    = "sts:AssumeRole"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = each.value.subjects }
+      }
     }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ec2_for_s3" {
-  role       = aws_iam_role.ec2_for_s3.name
-  policy_arn = local.managed.s3_full
-}
+# Exactly what scripts/deploy-s3.js, prune-stale-assets.js and incremental-articles.js do, on one site.
+resource "aws_iam_role_policy" "deploy" {
+  for_each = local.sites
 
-resource "aws_iam_instance_profile" "ec2_for_s3" {
-  name = "ec2-for-s3"
-  role = aws_iam_role.ec2_for_s3.name
+  name = "deploy-${each.key}"
+  role = aws_iam_role.deploy[each.key].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListTheBucket"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = "arn:aws:s3:::${each.value.bucket}"
+      },
+      {
+        Sid      = "ReadWriteDeleteObjects"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::${each.value.bucket}/*"
+      },
+      {
+        Sid      = "InvalidateTheCache"
+        Effect   = "Allow"
+        Action   = ["cloudfront:GetDistribution", "cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"]
+        Resource = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${each.value.distribution_id}"
+      },
+    ]
+  })
 }

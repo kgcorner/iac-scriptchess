@@ -1,42 +1,31 @@
-# IAM hardening (not applied)
+# Clearing out the old IAM
 
-`main.tf` copies what is live today. This is what is wrong with it, in order of risk. Nothing here is done
-by OpenTofu: access keys must never be in the state file, and changing the group would cut off the deploy.
+State of the account on 31 Oct 2026, and what to do about it. Nothing here is done by OpenTofu: access keys
+must never be in the state file, and removing the old users before the deploy has moved would break it.
 
-## 1. Every user is an administrator
+## Today
 
-`scriptchess-admin-group` has `AdministratorAccess` and contains all three users. A leaked GitHub secret
-(`deployer`) or image-generator key can read, change or delete anything in the account, including billing,
-IAM and the state bucket.
+- Group `scriptchess-admin-group` has `AdministratorAccess` and `AmazonS3FullAccess`, and contains **all three
+  users**: `scriptchess-admin`, `deployer`, `image-generator-user`. Every key is a full administrator key.
+- `deployer` has two active keys (2024, 2026) and CloudFront full access; its key is in GitHub as a secret.
+- `scriptchess-admin` has a key from 2022. It was last used on 2026-10-01 against S3 and the owner does not
+  know by what. CloudTrail's event history shows nothing for it, which fits: object reads and writes are data
+  events, which are not recorded unless a trail is set up for them.
+- `image-generator-user` has a key from 2025.
+- Nobody has MFA.
+- Roles `ec2-for-s3` (full S3) and `rds-monitoring-role` (no RDS database exists any more).
 
-Target:
+## Target
 
-| User | Needs | Give it |
-|---|---|---|
-| `scriptchess-admin` | everything | stays in the admin group, with MFA |
-| `deployer` | upload to `scriptchess.com` and `dev.scriptchess.com`; CloudFront invalidation | a policy with `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` on those two buckets, and `cloudfront:GetDistribution`, `cloudfront:CreateInvalidation`, `cloudfront:GetInvalidation` |
-| `image-generator-user` | write to `generated-images-scriptchess` | `s3:PutObject`, `s3:GetObject`, `s3:ListBucket` on that bucket |
+Only deployment needs AWS from outside: the two `github-deploy-*` roles in `main.tf`. Everything else is a
+person using the console or CLI, with MFA. No IAM user holds a key.
 
-Order: write the two policies, attach them, test a deploy and an image run, then remove both users from the
-admin group. Never the other way round.
+## Order (each step is checked before the next)
 
-## 2. Keys
-
-- `deployer` has **two active keys** (2024 and 2026). Find which one GitHub uses (the repository secret
-  `AWS_ACCESS_KEY_ID`), then deactivate the other for a week and delete it.
-- `scriptchess-admin` has a key from **2022**. Create a new one, switch your CLI over, then delete the old one.
-- `image-generator-user` key (2025): rotate yearly.
-
-## 3. MFA
-
-No user has MFA. Turn it on for `scriptchess-admin` first (IAM, Users, Security credentials). Better still, use
-`aws login` or IAM Identity Center for your own access and keep this user for emergencies.
-
-## 4. The EC2 role
-
-`ec2-for-s3` has full S3 access. The instance is stopped. When it is deleted, delete the role and instance
-profile with it (remove them from `main.tf` and apply).
-
-## 5. Leftovers
-
-`rds-monitoring-role` belongs to an RDS database that no longer exists. Delete it by hand.
+1. Apply this stack (creates the OIDC provider and two roles; changes nothing that exists).
+2. In scriptchess-fe, change the workflows to assume the roles (`aws-actions/configure-aws-credentials`) and
+   run a dev deploy. Then a prod run once `DEPLOY_ENABLED` is on.
+3. Deactivate (do not delete) every access key of the three users. Wait a week. If nothing broke, delete them.
+4. Delete the three users and the group, and the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` secrets in GitHub.
+5. Delete `ec2-for-s3` (and its instance profile) when the stopped instance is deleted, and `rds-monitoring-role` now.
+6. Make sure your own login has MFA (the root user too).
