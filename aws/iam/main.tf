@@ -92,3 +92,42 @@ resource "aws_iam_role_policy" "deploy" {
     ]
   })
 }
+
+# ---------------------------------------------------------------------------------------------------------------
+# Strapi (runs on DigitalOcean, so no role is possible: it needs one access key). The key can only touch the media
+# bucket. The key is NOT created here (it would end up in the state file):
+#   aws iam create-access-key --user-name strapi-media
+# and goes into the droplet's env file. Rotate it every ~90 days (create a second key, switch, delete the old one).
+# ---------------------------------------------------------------------------------------------------------------
+locals {
+  strapi_bucket = "scriptchess-images"
+}
+
+resource "aws_iam_user" "strapi_media" {
+  name = "strapi-media"
+  tags = { purpose = "strapi-upload-s3" }
+}
+
+resource "aws_iam_user_policy" "strapi_media" {
+  name = "media-bucket-only"
+  user = aws_iam_user.strapi_media.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListTheBucket"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = "arn:aws:s3:::${local.strapi_bucket}"
+      },
+      {
+        # PutObjectAcl is only needed if Strapi sets an ACL (e.g. public-read) on uploads. Remove it if not.
+        Sid      = "UploadsAndDeletes"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:PutObjectAcl", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::${local.strapi_bucket}/*"
+      },
+    ]
+  })
+}

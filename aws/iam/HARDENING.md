@@ -25,6 +25,9 @@ person using the console or CLI, with MFA. No IAM user holds a key.
 1. Apply this stack (creates the OIDC provider and two roles; changes nothing that exists).
 2. In scriptchess-fe, change the workflows to assume the roles (`aws-actions/configure-aws-credentials`) and
    run a dev deploy. Then a prod run once `DEPLOY_ENABLED` is on.
+2b. Apply, then `aws iam create-access-key --user-name strapi-media`, put the key in the Strapi droplets' env
+   files, restart Strapi, upload one image to confirm. `scriptchess-admin` (used by Strapi) was deactivated early,
+   so uploads are broken until this is done.
 3. Deactivate (do not delete) every access key of the three users. Wait a week. If nothing broke, delete them.
 4. Delete the three users and the group, and the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` secrets in GitHub.
 5. Delete `ec2-for-s3` (and its instance profile) when the stopped instance is deleted, and `rds-monitoring-role` now.
