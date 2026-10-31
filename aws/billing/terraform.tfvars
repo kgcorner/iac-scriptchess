@@ -1,2 +1,2 @@
 # Committed; no secrets here.
-billing_email = "REPLACE_ME@example.com"
+billing_email = "scriptchesscom@gmail.com"
