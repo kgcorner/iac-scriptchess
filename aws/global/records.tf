@@ -11,17 +11,17 @@ locals {
       name = "scriptchess.com"
       type = "TXT"
       records = [
-        "\"google-site-verification=6nxgh9VvJ3H_nHd6J1jh9elweVGGWvcz2XZ0oyu6-Ms\"",
-        "\"igleot1pvm\"",
+        "google-site-verification=6nxgh9VvJ3H_nHd6J1jh9elweVGGWvcz2XZ0oyu6-Ms",
+        "igleot1pvm",
         # SPF: only Google may send mail as scriptchess.com. ~all marks anything else as suspicious
         # without rejecting it (DMARC is still p=none). When Amazon SES starts sending, add include:amazonses.com.
-        "\"v=spf1 include:_spf.google.com ~all\"",
+        "v=spf1 include:_spf.google.com ~all",
       ]
     }
     dmarc = {
       name    = "_dmarc.scriptchess.com"
       type    = "TXT"
-      records = ["\"v=DMARC1; p=none;\""]
+      records = ["v=DMARC1; p=none;"]
     }
 
     # ---- Mailchimp DKIM. WARNING: the names have the domain twice, so these records do not work as DKIM.
@@ -53,7 +53,7 @@ locals {
     marga_txt = {
       name    = "marga.scriptchess.com"
       type    = "TXT"
-      records = ["\"zzrkdcpuhw\""]
+      records = ["zzrkdcpuhw"]
     }
 
     # ---- ACM certificate validation. Never delete these: ACM uses them to renew the certificates.
