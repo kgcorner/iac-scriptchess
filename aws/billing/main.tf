@@ -1,13 +1,12 @@
 # Billing alarms. Free: the first two budgets and Cost Anomaly Detection cost nothing.
-# Lives in this stack so it is applied with the rest of the account-wide settings.
 
 variable "billing_email" {
-  description = "Where budget and anomaly alerts are sent (set in terraform.tfvars)."
+  description = "Where budget and anomaly alerts are sent (set in aws/billing/terraform.tfvars)."
   type        = string
 
   validation {
     condition     = can(regex("^[^@\\s]+@[^@\\s]+$", var.billing_email)) && !endswith(var.billing_email, "@example.com")
-    error_message = "Set billing_email in aws/storage/terraform.tfvars to a real address."
+    error_message = "Set billing_email in aws/billing/terraform.tfvars to a real address."
   }
 }
 
