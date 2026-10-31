@@ -1,0 +1,23 @@
+terraform {
+  required_version = ">= 1.10"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+
+  # One state file per stack, all in the same bucket.
+  backend "s3" {
+    bucket       = "scriptchess-state"
+    key          = "aws/global.tfstate"
+    region       = "ap-south-1"
+    use_lockfile = true
+    encrypt      = true
+  }
+}
+
+provider "aws" {
+  region = "ap-south-1"
+}
