@@ -1,6 +1,6 @@
 # The three buckets that are not a website or the image bucket: the OpenTofu state, access logs and generated
 # images. Written to match what is live today, so the first plan shows no changes. Improvements go in a
-# later change (see the notes on scriptchess-logs).
+# later change.
 #
 # Not here: the dev and prod site buckets (aws/envs), scriptchess-images (aws/media).
 
@@ -72,34 +72,19 @@ resource "aws_s3_bucket" "logs" {
   }
 }
 
-# WARNING: this is what is live today, copied as it is. It lets ANYONE on the internet read and change the
-# bucket's ACL (Principal "*", s3:GetBucketAcl and s3:PutBucketAcl), which is enough to take the bucket over.
-# It dates from 2023 and looks like a leftover from setting up log delivery. Log delivery to an S3 bucket does
-# not need it. Remove it in a separate change once you have confirmed that nothing relies on it.
-resource "aws_s3_bucket_policy" "logs" {
-  bucket = aws_s3_bucket.logs.id
+# There is no bucket policy. Until Oct 2026 one let anyone on the internet read and change the bucket's ACL
+# (Principal "*", s3:GetBucketAcl / s3:PutBucketAcl). CloudFront log delivery does not need it: it writes through
+# the ACL grant to the log delivery account, which AWS adds when logging is turned on. Removing the resource
+# deletes the policy on the next apply.
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Id      = "Policy1673667237035"
-    Statement = [{
-      Sid       = "Stmt1673667233941"
-      Effect    = "Allow"
-      Principal = "*"
-      Action    = ["s3:GetBucketAcl", "s3:PutBucketAcl"]
-      Resource  = aws_s3_bucket.logs.arn
-    }]
-  })
-}
-
-# Configured today with every switch off, which is the same as having none; kept so the plan is clean.
+# All four on. The log delivery grant is not public, so blocking public ACLs and policies does not stop logging.
 resource "aws_s3_bucket_public_access_block" "logs" {
   bucket = aws_s3_bucket.logs.id
 
-  block_public_acls       = false
-  ignore_public_acls      = false
-  block_public_policy     = false
-  restrict_public_buckets = false
+  block_public_acls       = true
+  ignore_public_acls      = true
+  block_public_policy     = true
+  restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
